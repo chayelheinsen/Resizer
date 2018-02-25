@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class CachedImageFetcher
   attr_reader :image_path, :w, :h
   def initialize(image_path, w:, h:)
@@ -7,18 +9,20 @@ class CachedImageFetcher
   end
 
   def call
-    object = cached_image_from_s3
+    return unless cached_image_from_s3.exists?
 
-    if object.exists?
-      data = MiniMagick::Image.open(object.presigned_url(:get))
-      OpenStruct.new(data: data.tempfile.open, content_type: object.content_type)
-    end
+    data = fetch_image
+    OpenStruct.new(data: data.tempfile.open, content_type: data.mime_type)
   end
 
   private
 
+  def fetch_image
+    MiniMagick::Image.open(cached_image_from_s3.presigned_url(:get))
+  end
+
   def bucket
-    @bucket ||= ENV.fetch('S3_BUCKET')
+    @bucket ||= ENV.fetch("S3_BUCKET")
   end
 
   def bucket_path
@@ -30,6 +34,6 @@ class CachedImageFetcher
   end
 
   def cached_image_from_s3
-    S3.bucket(bucket).object(cached_s3_key)
+    @cached_image_from_s3 ||= S3.bucket(bucket).object(cached_s3_key)
   end
 end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ImageFetcher
   attr_reader :image_path, :w, :h
   def initialize(image_path, w:, h:)
@@ -8,28 +10,49 @@ class ImageFetcher
 
   def call
     return unless image_from_s3.exists?
-    data = MiniMagick::Image.open(image_from_s3.presigned_url(:get))
+    image = fetch_image
+    return struct_with_image(image) unless can_resize?
 
-    if w && h
-      data.resize("#{w}x#{h}")
-      file = data.tempfile.open
+    resize(image)
 
-      if S3.bucket(bucket).object(cache_key).upload_file(file)
-        CachedImageFetcher.new(image_path, w: w, h: h).call
-      end
-    else
-      OpenStruct.new(data: data.tempfile.open, content_type: data.mime_type)
+    if save_file(file_from_image(image))
+      CachedImageFetcher.new(image_path, w: w, h: h).call
     end
+  rescue MiniMagick::Invalid
   end
 
   private
+
+  def resize(image)
+    image.resize("#{w}x#{h}")
+  end
+
+  def file_from_image(image)
+    image.tempfile.open
+  end
+
+  def struct_with_image(image)
+    OpenStruct.new(data: image.tempfile.open, content_type: image.mime_type)
+  end
+
+  def fetch_image
+    MiniMagick::Image.open(image_from_s3.presigned_url(:get))
+  end
+
+  def save_file(file)
+    S3.bucket(bucket).object(cache_key).upload_file(file)
+  end
+
+  def can_resize?
+    w && h
+  end
 
   def cache_key
     "resizer/#{w}x#{h}/#{image_path}"
   end
 
   def bucket
-    @bucket ||= ENV.fetch('S3_BUCKET')
+    @bucket ||= ENV.fetch("S3_BUCKET")
   end
 
   def bucket_path

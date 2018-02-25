@@ -8,14 +8,14 @@ git_source(:github) do |repo_name|
 end
 
 gem "aws-sdk-s3", "~> 1"
+gem "mini_magick"
 gem "puma", "~> 3.7"
 gem "rails", "~> 5.1.4"
-gem "mini_magick"
 
 group :development, :test do
   gem "byebug", platforms: %i[mri mingw x64_mingw]
-  gem "pry-byebug"
   gem "dotenv-rails"
+  gem "pry-byebug"
 end
 
 group :development do
